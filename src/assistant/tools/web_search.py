@@ -64,7 +64,7 @@ class WebSearchTool(Tool):
 
     def _search(self, query: str, max_results: int) -> list[dict[str, Any]]:
         """Synchronous DuckDuckGo search — runs in a thread via asyncio.to_thread."""
-        from duckduckgo_search import DDGS  # noqa: PLC0415
+        from ddgs import DDGS  # noqa: PLC0415
 
         with DDGS() as ddgs:
             return list(ddgs.text(query, max_results=max_results))

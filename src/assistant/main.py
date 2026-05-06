@@ -20,6 +20,8 @@ from assistant.core.events import (
     SpeechSynthesisRequested,
 )
 from assistant.core.logging import setup_logging
+from assistant.tools.registry import ToolRegistry
+from assistant.tools.web_search import WebSearchTool
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +35,13 @@ async def main() -> None:
     # --- infrastructure ---
     event_bus = EventBus()
 
+    # --- tools ---
+    tool_registry = ToolRegistry()
+    tool_registry.register(WebSearchTool())
+
     # --- brain ---
     llm_client = LLMClient(config)
-    orchestrator = Orchestrator(event_bus, llm_client, config)
+    orchestrator = Orchestrator(event_bus, llm_client, config, tool_registry=tool_registry)
 
     # --- audio ---
     stt_engine = STTEngine(config)
@@ -44,11 +50,11 @@ async def main() -> None:
     wake_detector = WakeWordDetector(config)
 
     # --- subscriptions (order matters) ---
-    orchestrator.start()              # UserSpeechDetected → LLMResponseReady
-    stt_engine.start(event_bus)       # WakeWordDetected  → UserSpeechDetected
-    tts_engine.start(event_bus)       # SpeechSynthesisRequested → AudioPlaybackRequested
-    audio_player.start(event_bus)     # AudioPlaybackRequested → playback
-    wake_detector.start(event_bus)    # background thread → WakeWordDetected
+    orchestrator.start()  # UserSpeechDetected → LLMResponseReady
+    stt_engine.start(event_bus)  # WakeWordDetected  → UserSpeechDetected
+    tts_engine.start(event_bus)  # SpeechSynthesisRequested → AudioPlaybackRequested
+    audio_player.start(event_bus)  # AudioPlaybackRequested → playback
+    wake_detector.start(event_bus)  # background thread → WakeWordDetected
 
     # bridge: LLM text response → TTS
     async def _on_llm_response(event: LLMResponseReady) -> None:

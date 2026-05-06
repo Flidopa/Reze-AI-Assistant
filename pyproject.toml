@@ -5,7 +5,7 @@ description = "Personal voice AI assistant with custom voice cloning"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    "duckduckgo-search>=8.1.1",
+    "ddgs>=9.14.2",
     "edge-tts>=7.2.8",
     "faster-whisper>=1.2.1",
     "httpx>=0.28.1",
@@ -47,7 +47,7 @@ warn_return_any = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["miniaudio", "sounddevice", "edge_tts", "faster_whisper", "ctranslate2", "pvporcupine", "duckduckgo_search"]
+module = ["miniaudio", "sounddevice", "edge_tts", "faster_whisper", "ctranslate2", "pvporcupine", "ddgs"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
