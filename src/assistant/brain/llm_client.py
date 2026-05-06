@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -19,9 +20,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Message:
     role: str
-    content: str
+    content: str | None
     tool_call_id: str | None = None
     name: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -93,8 +95,6 @@ class LLMClient:
         tool_calls: list[ToolCall] = []
         if choice.message.tool_calls:
             for tc in choice.message.tool_calls:
-                import json
-
                 tool_calls.append(
                     ToolCall(
                         id=tc.id,
@@ -116,7 +116,7 @@ class LLMClient:
             usage_tokens=usage_tokens,
         )
 
-    # --- helpers ---
+    # --- static message constructors ---
 
     @staticmethod
     def system_message(content: str) -> Message:
@@ -131,10 +131,30 @@ class LLMClient:
         return Message(role="assistant", content=content)
 
     @staticmethod
+    def tool_message(tool_call_id: str, content: str) -> Message:
+        """Result message returned to the LLM after a tool execution."""
+        return Message(role="tool", content=content, tool_call_id=tool_call_id)
+
+    @staticmethod
+    def assistant_tool_calls_message(tool_calls: list[ToolCall]) -> Message:
+        """Assistant message that contains tool call requests (no text content)."""
+        raw_calls = [
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
+            }
+            for tc in tool_calls
+        ]
+        return Message(role="assistant", content=None, tool_calls=raw_calls)
+
+    @staticmethod
     def _message_to_dict(msg: Message) -> dict[str, Any]:
         d: dict[str, Any] = {"role": msg.role, "content": msg.content}
         if msg.tool_call_id is not None:
             d["tool_call_id"] = msg.tool_call_id
         if msg.name is not None:
             d["name"] = msg.name
+        if msg.tool_calls is not None:
+            d["tool_calls"] = msg.tool_calls
         return d

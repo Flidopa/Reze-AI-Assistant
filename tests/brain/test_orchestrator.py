@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from assistant.brain.llm_client import LLMClient, LLMResponse, ToolCall
-from assistant.brain.orchestrator import Orchestrator
+from assistant.brain.orchestrator import MAX_TOOL_ROUNDS, Orchestrator
 from assistant.core.config import AssistantConfig
 from assistant.core.event_bus import EventBus
-from assistant.core.events import LLMResponseReady, ToolCallRequested, UserSpeechDetected
+from assistant.core.events import (
+    LLMResponseReady,
+    ToolCallCompleted,
+    ToolCallRequested,
+    UserSpeechDetected,
+)
+from assistant.tools.base import Tool, ToolResult
+from assistant.tools.registry import ToolRegistry
 
 
 def _make_config(**overrides: object) -> AssistantConfig:
@@ -179,5 +187,150 @@ class TestErrorHandling:
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
+
 async def _noop() -> None:
     pass
+
+
+def _make_registry(tool_name: str = "dummy", result: str = "ok") -> ToolRegistry:
+    class _SimpleTool(Tool):
+        @property
+        def name(self) -> str:
+            return tool_name
+
+        @property
+        def description(self) -> str:
+            return "A simple test tool"
+
+        @property
+        def parameters(self) -> dict[str, Any]:
+            return {"type": "object", "properties": {}}
+
+        async def execute(self, **kwargs: Any) -> ToolResult:
+            return ToolResult(content=result)
+
+    reg = ToolRegistry()
+    reg.register(_SimpleTool())
+    return reg
+
+
+class TestMultiTurnToolLoop:
+    async def test_tool_then_text_emits_response(
+        self, event_bus: EventBus, llm_mock: AsyncMock
+    ) -> None:
+        registry = _make_registry("get_weather", "Солнечно, +20°C")
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.side_effect = [
+            _tool_llm("get_weather", {"city": "Moscow"}),
+            _text_llm("В Москве солнечно, +20°C"),
+        ]
+        received: list[LLMResponseReady] = []
+        event_bus.subscribe(LLMResponseReady, lambda e: received.append(e) or _noop())  # type: ignore[arg-type, return-value]
+
+        await event_bus.emit(UserSpeechDetected(text="Погода?"))
+
+        assert len(received) == 1
+        assert received[0].text == "В Москве солнечно, +20°C"
+
+    async def test_tool_result_in_history(self, event_bus: EventBus, llm_mock: AsyncMock) -> None:
+        registry = _make_registry("dummy", "result_text")
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.side_effect = [
+            _tool_llm("dummy", {}),
+            _text_llm("Готово"),
+        ]
+        await event_bus.emit(UserSpeechDetected(text="go"))
+
+        tool_msgs = [m for m in orc._history if m.role == "tool"]
+        assert len(tool_msgs) == 1
+        assert tool_msgs[0].content == "result_text"
+
+    async def test_assistant_tool_calls_message_in_history(
+        self, event_bus: EventBus, llm_mock: AsyncMock
+    ) -> None:
+        registry = _make_registry("dummy", "r")
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.side_effect = [_tool_llm("dummy", {}), _text_llm("OK")]
+        await event_bus.emit(UserSpeechDetected(text="test"))
+
+        assistant_tc_msgs = [m for m in orc._history if m.role == "assistant" and m.tool_calls]
+        assert len(assistant_tc_msgs) == 1
+
+    async def test_max_rounds_stops_loop(self, event_bus: EventBus, llm_mock: AsyncMock) -> None:
+        registry = _make_registry("loop_tool", "keep going")
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.return_value = _tool_llm("loop_tool", {})
+
+        received: list[LLMResponseReady] = []
+        event_bus.subscribe(LLMResponseReady, lambda e: received.append(e) or _noop())  # type: ignore[arg-type, return-value]
+
+        await event_bus.emit(UserSpeechDetected(text="spin"))
+
+        assert received == []
+        assert llm_mock.complete.call_count == MAX_TOOL_ROUNDS
+
+    async def test_tool_completed_event_emitted(
+        self, event_bus: EventBus, llm_mock: AsyncMock
+    ) -> None:
+        registry = _make_registry("my_tool", "the result")
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.side_effect = [_tool_llm("my_tool", {}), _text_llm("done")]
+
+        completed: list[ToolCallCompleted] = []
+        event_bus.subscribe(ToolCallCompleted, lambda e: completed.append(e) or _noop())  # type: ignore[arg-type, return-value]
+
+        await event_bus.emit(UserSpeechDetected(text="go"))
+
+        assert len(completed) == 1
+        assert completed[0].tool_name == "my_tool"
+        assert completed[0].result == "the result"
+        assert completed[0].success is True
+
+    async def test_unknown_tool_returns_error_to_llm(
+        self, event_bus: EventBus, llm_mock: AsyncMock
+    ) -> None:
+        registry = ToolRegistry()  # empty — no tools registered
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.side_effect = [
+            _tool_llm("ghost", {}),
+            _text_llm("Инструмент не найден"),
+        ]
+
+        received: list[LLMResponseReady] = []
+        event_bus.subscribe(LLMResponseReady, lambda e: received.append(e) or _noop())  # type: ignore[arg-type, return-value]
+
+        await event_bus.emit(UserSpeechDetected(text="test"))
+
+        assert len(received) == 1
+
+        tool_msgs = [m for m in orc._history if m.role == "tool"]
+        assert "ghost" in tool_msgs[0].content  # type: ignore[operator]
+
+    async def test_no_tool_call_requested_event_with_registry(
+        self, event_bus: EventBus, llm_mock: AsyncMock
+    ) -> None:
+        """With a registry, orchestrator should NOT emit ToolCallRequested."""
+        registry = _make_registry("dummy", "r")
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.side_effect = [_tool_llm("dummy", {}), _text_llm("OK")]
+
+        tc_requested: list[ToolCallRequested] = []
+        event_bus.subscribe(ToolCallRequested, lambda e: tc_requested.append(e) or _noop())  # type: ignore[arg-type, return-value]
+
+        await event_bus.emit(UserSpeechDetected(text="test"))
+
+        assert tc_requested == []
