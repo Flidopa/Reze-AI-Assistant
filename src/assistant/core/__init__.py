@@ -1,5 +1,6 @@
-"""Core infrastructure: event bus and event types."""
+"""Core infrastructure: event bus, event types, config, and logging."""
 
+from assistant.core.config import AssistantConfig, get_config
 from assistant.core.event_bus import EventBus
 from assistant.core.events import (
     AssistantShutdown,
@@ -15,8 +16,12 @@ from assistant.core.events import (
     UserSpeechDetected,
     WakeWordDetected,
 )
+from assistant.core.logging import setup_logging
 
 __all__ = [
+    "AssistantConfig",
+    "get_config",
+    "setup_logging",
     "EventBus",
     "Event",
     "WakeWordDetected",

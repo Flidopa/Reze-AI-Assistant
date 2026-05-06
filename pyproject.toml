@@ -5,9 +5,16 @@ description = "Personal voice AI assistant with custom voice cloning"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
+    "edge-tts>=7.2.8",
+    "faster-whisper>=1.2.1",
+    "httpx>=0.28.1",
+    "miniaudio>=1.71",
+    "numpy>=2.4.4",
+    "openai>=2.35.0",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "python-dotenv>=1.0",
+    "sounddevice>=0.5.5",
 ]
 
 [dependency-groups]
@@ -37,6 +44,10 @@ python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["miniaudio", "sounddevice", "edge_tts", "faster_whisper", "ctranslate2", "pvporcupine"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

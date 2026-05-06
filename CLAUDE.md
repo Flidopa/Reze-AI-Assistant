@@ -130,6 +130,7 @@ ai-assistant/
 │       │   ├── wake_word.py
 │       │   ├── stt.py
 │       │   ├── tts.py
+│       │   ├── player.py      # воспроизведение аудио через sounddevice
 │       │   └── voice_cloning.py
 │       │
 │       ├── brain/             # мозг
@@ -228,16 +229,30 @@ uv run mypy src/
 
 ## 🚧 Текущая фаза
 
-**Phase 0 — Setup** (сейчас здесь)
-- Создать структуру проекта
-- Настроить pyproject.toml, uv, ruff, mypy, pytest
-- Базовый Event Bus + базовые события
-- Skeleton main.py
-- README с инструкцией запуска
+**Phase 0 — Setup** ✅ ЗАВЕРШЕНА
+- [x] Структура проекта, pyproject.toml, uv, ruff, mypy, pytest
+- [x] EventBus + базовые события (core/event_bus.py, core/events.py)
+- [x] Config через pydantic-settings (core/config.py)
+- [x] Логирование (core/logging.py)
+- [x] Skeleton main.py
 
-**Следующая — Phase 1 — Voice Loop MVP**
-- Wake word (Porcupine) → STT (Whisper) → LLM (OpenRouter) → TTS (заглушка edge-tts на старте)
-- Цель: замкнуть круг "сказал → услышал ответ"
+**Phase 1 — Voice Loop MVP** ✅ ЗАВЕРШЕНА
+- [x] LLM Client (brain/llm_client.py) — OpenRouter
+- [x] Orchestrator (brain/orchestrator.py) — диалог с историей
+- [x] TTS (audio/tts.py) — edge-tts placeholder
+- [x] Audio Player (audio/player.py) — sounddevice
+- [x] STT (audio/stt.py) — faster-whisper + CUDA fallback
+- [x] Wake Word (audio/wake_word.py) — Porcupine (graceful degradation без ключа)
+- [x] Финальный wiring (main.py)
+- Результат: полная голосовая петля работает
+
+**Phase 2 — Кастомный голос** (следующая)
+- [ ] Поднять RVC локально
+- [ ] Заменить edge-tts на XTTS-v2 (audio/tts.py)
+- [ ] Подключить RVC для клонирования тембра (audio/voice_cloning.py)
+- [ ] Натренировать модель на сэмплах выбранного голоса
+- [ ] Добавить cooldown для wake word (защита от повторных срабатываний)
+- Цель: ассистент говорит нужным голосом
 
 > Этот раздел обновляем при переходе между фазами.
 
