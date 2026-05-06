@@ -18,6 +18,8 @@ from assistant.core.events import (
     WakeWordDetected,
 )
 from assistant.core.logging import setup_logging
+from assistant.tools.registry import ToolRegistry
+from assistant.tools.web_search import WebSearchTool
 
 
 async def main() -> None:
@@ -26,8 +28,11 @@ async def main() -> None:
 
     event_bus = EventBus()
 
+    registry = ToolRegistry()
+    registry.register(WebSearchTool())
+
     llm_client = LLMClient(config)
-    orchestrator = Orchestrator(event_bus, llm_client, config)
+    orchestrator = Orchestrator(event_bus, llm_client, config, tool_registry=registry)
     orchestrator.start()
 
     tts_engine = TTSEngine(config)
@@ -52,7 +57,7 @@ async def main() -> None:
 
     while True:
         try:
-            user_input = input("Ты: ").strip()
+            user_input = input("Ты: ").strip()  # noqa: ASYNC250
             if user_input == "":
                 print("  Слушаю...")
                 await event_bus.emit(WakeWordDetected())
