@@ -150,7 +150,14 @@ class LLMClient:
 
     @staticmethod
     def _message_to_dict(msg: Message) -> dict[str, Any]:
-        d: dict[str, Any] = {"role": msg.role, "content": msg.content}
+        d: dict[str, Any] = {"role": msg.role}
+        # Omit content entirely when it's None and we have tool_calls — some
+        # providers (notably non-OpenAI ones via OpenRouter) treat explicit
+        # null as a malformed message and ignore the following tool result.
+        if msg.content is not None:
+            d["content"] = msg.content
+        elif msg.tool_calls is None:
+            d["content"] = ""
         if msg.tool_call_id is not None:
             d["tool_call_id"] = msg.tool_call_id
         if msg.name is not None:

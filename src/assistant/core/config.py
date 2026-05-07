@@ -21,7 +21,7 @@ class AssistantConfig(BaseSettings):
 
     # --- LLM ---
     openrouter_api_key: str = ""
-    llm_model: str = "openai/gpt-4o-mini"
+    llm_model: str = "deepseek/deepseek-v4-flash"
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_timeout: int = 30
     llm_max_tokens: int = 1024

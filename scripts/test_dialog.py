@@ -18,7 +18,9 @@ from assistant.core.events import (
     WakeWordDetected,
 )
 from assistant.core.logging import setup_logging
+from assistant.tools.datetime_tool import DateTimeTool
 from assistant.tools.registry import ToolRegistry
+from assistant.tools.weather import WeatherTool
 from assistant.tools.web_search import WebSearchTool
 
 
@@ -30,6 +32,8 @@ async def main() -> None:
 
     registry = ToolRegistry()
     registry.register(WebSearchTool())
+    registry.register(WeatherTool(config.openweather_api_key))
+    registry.register(DateTimeTool())
 
     llm_client = LLMClient(config)
     orchestrator = Orchestrator(event_bus, llm_client, config, tool_registry=registry)

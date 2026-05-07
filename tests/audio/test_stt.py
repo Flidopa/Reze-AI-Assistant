@@ -73,9 +73,7 @@ class TestTranscribe:
 
 
 class TestWakeWordHandling:
-    async def test_emits_user_speech_detected(
-        self, engine: STTEngine, event_bus: EventBus
-    ) -> None:
+    async def test_emits_user_speech_detected(self, engine: STTEngine, event_bus: EventBus) -> None:
         engine.start(event_bus)
         received: list[UserSpeechDetected] = []
         event_bus.subscribe(UserSpeechDetected, lambda e: received.append(e) or _noop())  # type: ignore[arg-type, return-value]
@@ -87,9 +85,7 @@ class TestWakeWordHandling:
         assert len(received) == 1
         assert received[0].text == "Включи музыку"
 
-    async def test_silence_does_not_emit(
-        self, engine: STTEngine, event_bus: EventBus
-    ) -> None:
+    async def test_silence_does_not_emit(self, engine: STTEngine, event_bus: EventBus) -> None:
         engine.start(event_bus)
         received: list[UserSpeechDetected] = []
         event_bus.subscribe(UserSpeechDetected, lambda e: received.append(e) or _noop())  # type: ignore[arg-type, return-value]
@@ -102,9 +98,7 @@ class TestWakeWordHandling:
 
 
 class TestListenAndTranscribe:
-    async def test_returns_transcribed_text(
-        self, engine: STTEngine, mock_model: MagicMock
-    ) -> None:
+    async def test_returns_transcribed_text(self, engine: STTEngine, mock_model: MagicMock) -> None:
         mock_model.transcribe.return_value = ([_segment("Тест работает")], MagicMock())
         silence = np.zeros(int(engine._config.audio_listen_duration * 16000), dtype=np.float32)
 
@@ -113,9 +107,7 @@ class TestListenAndTranscribe:
 
         assert result == "Тест работает"
 
-    async def test_returns_none_on_silence(
-        self, engine: STTEngine, mock_model: MagicMock
-    ) -> None:
+    async def test_returns_none_on_silence(self, engine: STTEngine, mock_model: MagicMock) -> None:
         mock_model.transcribe.return_value = ([], MagicMock())
         silence = np.zeros(16000, dtype=np.float32)
 
@@ -126,6 +118,7 @@ class TestListenAndTranscribe:
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
+
 
 async def _noop() -> None:
     pass

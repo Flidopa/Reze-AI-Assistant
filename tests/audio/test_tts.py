@@ -97,9 +97,7 @@ class TestSpeechSynthesisEvent:
         assert isinstance(received[0].audio_data, bytes)
         assert len(received[0].audio_data) > 0
 
-    async def test_no_playback_event_on_error(
-        self, engine: TTSEngine, event_bus: EventBus
-    ) -> None:
+    async def test_no_playback_event_on_error(self, engine: TTSEngine, event_bus: EventBus) -> None:
         engine.start(event_bus)
         received: list[AudioPlaybackRequested] = []
         event_bus.subscribe(AudioPlaybackRequested, lambda e: received.append(e) or _noop())  # type: ignore[arg-type, return-value]
@@ -125,6 +123,7 @@ class TestSpeechSynthesisEvent:
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
+
 
 async def _noop() -> None:
     pass

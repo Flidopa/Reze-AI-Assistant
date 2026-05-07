@@ -64,9 +64,7 @@ def _tool_response(tool_name: str, args: dict[str, Any], total_tokens: int = 30)
                         ChatCompletionMessageToolCall(
                             id="call_abc",
                             type="function",
-                            function=Function(
-                                name=tool_name, arguments=json.dumps(args)
-                            ),
+                            function=Function(name=tool_name, arguments=json.dumps(args)),
                         )
                     ],
                 ),
