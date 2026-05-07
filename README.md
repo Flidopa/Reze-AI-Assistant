@@ -1,6 +1,7 @@
 # AI Assistant
 
 Personal voice AI assistant with custom voice cloning, wake-word activation, and Telegram integration.
+<a href="https://ibb.co/yF5fMVwc"><img src="https://i.ibb.co/tpcmN37T/rezeai.png" alt="rezeai" border="0"></a>
 
 ## Установка
 
