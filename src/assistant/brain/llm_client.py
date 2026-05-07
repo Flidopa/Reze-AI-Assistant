@@ -48,13 +48,18 @@ class LLMClient:
             api_key=config.openrouter_api_key,
             base_url=config.llm_base_url,
             timeout=float(config.llm_timeout),
+            default_headers={
+                "HTTP-Referer": "https://github.com/Flidopa/Reze-AI-Assistant",
+                "X-Title": "Reze AI-Assistant",
+            },
         )
 
     async def complete(
         self,
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
-        temperature: float = 0.7,
+        temperature: float = 0.9,
+        top_p: float = 0.95,
     ) -> LLMResponse:
         """Send messages to the LLM and return a structured response."""
         logger.debug(
@@ -69,6 +74,7 @@ class LLMClient:
             "model": self._config.llm_model,
             "messages": api_messages,
             "temperature": temperature,
+            "top_p": top_p,
             "max_tokens": self._config.llm_max_tokens,
         }
         if tools is not None:

@@ -24,7 +24,7 @@ from assistant.core.config import AssistantConfig
 def _make_config(**overrides: Any) -> AssistantConfig:
     return AssistantConfig(
         openrouter_api_key="test-key",
-        llm_model="openai/gpt-4o-mini",
+        llm_model="x-ai/grok-4-fast",
         llm_timeout=10,
         llm_max_tokens=256,
         **overrides,
@@ -42,7 +42,7 @@ def _text_response(content: str, total_tokens: int = 15) -> ChatCompletion:
             )
         ],
         created=1700000000,
-        model="openai/gpt-4o-mini",
+        model="x-ai/grok-4-fast",
         object="chat.completion",
         usage=CompletionUsage(
             completion_tokens=5, prompt_tokens=total_tokens - 5, total_tokens=total_tokens
@@ -71,7 +71,7 @@ def _tool_response(tool_name: str, args: dict[str, Any], total_tokens: int = 30)
             )
         ],
         created=1700000000,
-        model="openai/gpt-4o-mini",
+        model="x-ai/grok-4-fast",
         object="chat.completion",
         usage=CompletionUsage(
             completion_tokens=10, prompt_tokens=total_tokens - 10, total_tokens=total_tokens
@@ -102,7 +102,7 @@ class TestTextResponse:
     async def test_model_and_tokens(self, client: LLMClient, mock_create: AsyncMock) -> None:
         mock_create.return_value = _text_response("ok", total_tokens=42)
         result = await client.complete([LLMClient.user_message("hi")])
-        assert result.model == "openai/gpt-4o-mini"
+        assert result.model == "x-ai/grok-4-fast"
         assert result.usage_tokens == 42
 
 

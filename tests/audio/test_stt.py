@@ -99,22 +99,36 @@ class TestWakeWordHandling:
 
 class TestListenAndTranscribe:
     async def test_returns_transcribed_text(self, engine: STTEngine, mock_model: MagicMock) -> None:
+        engine.start(EventBus())
         mock_model.transcribe.return_value = ([_segment("Тест работает")], MagicMock())
-        silence = np.zeros(int(engine._config.audio_listen_duration * 16000), dtype=np.float32)
+        silence = np.zeros(16000, dtype=np.float32)
 
-        with patch.object(engine, "_record_audio", return_value=silence):
+        with patch.object(engine, "_record_until_enter", return_value=silence):
             result = await engine.listen_and_transcribe()
 
         assert result == "Тест работает"
 
     async def test_returns_none_on_silence(self, engine: STTEngine, mock_model: MagicMock) -> None:
+        engine.start(EventBus())
         mock_model.transcribe.return_value = ([], MagicMock())
         silence = np.zeros(16000, dtype=np.float32)
 
-        with patch.object(engine, "_record_audio", return_value=silence):
+        with patch.object(engine, "_record_until_enter", return_value=silence):
             result = await engine.listen_and_transcribe()
 
         assert result is None
+
+    async def test_returns_none_on_empty_audio(
+        self, engine: STTEngine, mock_model: MagicMock
+    ) -> None:
+        engine.start(EventBus())
+        empty = np.zeros(0, dtype=np.float32)
+
+        with patch.object(engine, "_record_until_enter", return_value=empty):
+            result = await engine.listen_and_transcribe()
+
+        assert result is None
+        mock_model.transcribe.assert_not_called()
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────

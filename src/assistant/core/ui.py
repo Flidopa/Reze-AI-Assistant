@@ -15,6 +15,8 @@ from assistant.core.event_bus import EventBus
 from assistant.core.events import (
     AudioPlaybackRequested,
     LLMResponseReady,
+    RecordingStarted,
+    RecordingStopped,
     SpeechSynthesisRequested,
     ToolCallCompleted,
     ToolCallRequested,
@@ -37,6 +39,7 @@ _RULE_STYLE = "grey39"
 _THINK_STYLE = "magenta"
 _TOOL_STYLE = "yellow"
 _TTS_STYLE = "bright_blue"
+_REC_STYLE = "bold red"
 
 # --- per-tool spinner labels (Russian) ------------------------------------
 
@@ -81,6 +84,8 @@ class ConsoleUI:
     def start(self, event_bus: EventBus) -> None:
         """Subscribe to bus events. Call once at startup."""
         event_bus.subscribe(WakeWordDetected, self._on_wake)
+        event_bus.subscribe(RecordingStarted, self._on_recording_started)
+        event_bus.subscribe(RecordingStopped, self._on_recording_stopped)
         event_bus.subscribe(UserSpeechDetected, self._on_user_speech)
         event_bus.subscribe(ToolCallRequested, self._on_tool_requested)
         event_bus.subscribe(ToolCallCompleted, self._on_tool_completed)
@@ -110,6 +115,14 @@ class ConsoleUI:
 
     async def _on_wake(self, _event: WakeWordDetected) -> None:
         self._console.print(Text("🎙   слышу тебя...", style=_SYS_STYLE))
+
+    async def _on_recording_started(self, _event: RecordingStarted) -> None:
+        self._start_spinner(
+            "🔴 Слушаю... (нажми Enter чтобы остановить)", style=_REC_STYLE
+        )
+
+    async def _on_recording_stopped(self, _event: RecordingStopped) -> None:
+        self._stop_spinner()
 
     async def _on_user_speech(self, event: UserSpeechDetected) -> None:
         self._console.print(Rule(style=_RULE_STYLE))

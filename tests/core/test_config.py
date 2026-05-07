@@ -18,7 +18,7 @@ def _clear_config_cache() -> None:  # type: ignore[return]
 class TestDefaults:
     def test_llm_defaults(self) -> None:
         cfg = AssistantConfig()
-        assert cfg.llm_model == "openai/gpt-4o-mini"
+        assert cfg.llm_model == "x-ai/grok-4-fast"
         assert cfg.llm_timeout == 30
         assert cfg.llm_max_tokens == 1024
         assert cfg.llm_base_url == "https://openrouter.ai/api/v1"

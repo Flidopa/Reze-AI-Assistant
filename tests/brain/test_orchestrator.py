@@ -26,14 +26,14 @@ def _make_config(**overrides: object) -> AssistantConfig:
 
 
 def _text_llm(content: str) -> LLMResponse:
-    return LLMResponse(content=content, tool_calls=[], model="gpt-4o-mini", usage_tokens=10)
+    return LLMResponse(content=content, tool_calls=[], model="x-ai/grok-4-fast", usage_tokens=10)
 
 
 def _tool_llm(name: str, args: dict[str, object]) -> LLMResponse:
     return LLMResponse(
         content=None,
         tool_calls=[ToolCall(id="tc1", name=name, arguments=args)],
-        model="gpt-4o-mini",
+        model="x-ai/grok-4-fast",
         usage_tokens=15,
     )
 

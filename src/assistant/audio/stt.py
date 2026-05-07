@@ -1,10 +1,12 @@
-"""Speech-to-text transcription using faster-whisper."""
+"""Speech-to-text transcription using faster-whisper. Push-to-talk recording."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
+from typing import Any
 
 import ctranslate2
 import numpy as np
@@ -13,7 +15,12 @@ from faster_whisper import WhisperModel
 
 from assistant.core.config import AssistantConfig
 from assistant.core.event_bus import EventBus
-from assistant.core.events import UserSpeechDetected, WakeWordDetected
+from assistant.core.events import (
+    RecordingStarted,
+    RecordingStopped,
+    UserSpeechDetected,
+    WakeWordDetected,
+)
 
 __all__ = ["STTEngine"]
 
@@ -58,12 +65,19 @@ class STTEngine:
             await self._event_bus.emit(UserSpeechDetected(text=text))
 
     async def listen_and_transcribe(self) -> str | None:
-        """Record from microphone and return transcribed text (or None on silence)."""
-        duration = self._config.audio_listen_duration
-        logger.info("Recording for %.1f s...", duration)
-
+        """Push-to-talk: record until Enter is pressed, then transcribe."""
+        assert self._event_bus is not None
         loop = asyncio.get_event_loop()
-        audio = await loop.run_in_executor(None, self._record_audio, duration)
+
+        await self._event_bus.emit(RecordingStarted())
+        try:
+            audio = await loop.run_in_executor(None, self._record_until_enter)
+        finally:
+            await self._event_bus.emit(RecordingStopped())
+
+        if audio.size == 0:
+            logger.info("No audio captured")
+            return None
 
         t0 = time.monotonic()
         text = await loop.run_in_executor(None, self._transcribe, audio)
@@ -75,15 +89,37 @@ class STTEngine:
             logger.info("Silence detected")
         return text
 
-    def _record_audio(self, duration: float) -> np.ndarray:
-        audio = sd.rec(
-            int(duration * self._config.audio_sample_rate),
+    def _record_until_enter(self) -> np.ndarray:
+        """Capture mic audio until the user presses Enter. Blocks the calling thread."""
+        chunks: list[np.ndarray] = []
+        stop_event = threading.Event()
+
+        def on_audio(indata: np.ndarray, _frames: int, _time_info: Any, status: Any) -> None:
+            if status:
+                logger.warning("Audio stream status: %s", status)
+            chunks.append(indata.copy())
+
+        def wait_for_enter() -> None:
+            try:
+                input()
+            except (EOFError, KeyboardInterrupt):
+                pass
+            stop_event.set()
+
+        enter_thread = threading.Thread(target=wait_for_enter, daemon=True)
+        enter_thread.start()
+
+        with sd.InputStream(
             samplerate=self._config.audio_sample_rate,
             channels=1,
             dtype=np.float32,
-        )
-        sd.wait()
-        return audio.flatten()  # type: ignore[no-any-return]
+            callback=on_audio,
+        ):
+            stop_event.wait()
+
+        if not chunks:
+            return np.zeros(0, dtype=np.float32)
+        return np.concatenate(chunks).flatten()
 
     def _transcribe(self, audio: np.ndarray) -> str | None:
         segments, _ = self._model.transcribe(

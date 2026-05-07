@@ -61,7 +61,8 @@ async def main() -> None:
 
     while True:
         try:
-            user_input = input("Ты: ").strip()  # noqa: ASYNC250
+            user_input = await asyncio.to_thread(input, "Ты: ")
+            user_input = user_input.strip()
             if user_input == "":
                 print("  Слушаю...")
                 await event_bus.emit(WakeWordDetected())
@@ -71,4 +72,7 @@ async def main() -> None:
             break
 
 
-asyncio.run(main())
+try:
+    asyncio.run(main())
+except KeyboardInterrupt:
+    pass

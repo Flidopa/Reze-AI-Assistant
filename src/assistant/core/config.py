@@ -21,7 +21,7 @@ class AssistantConfig(BaseSettings):
 
     # --- LLM ---
     openrouter_api_key: str = ""
-    llm_model: str = "deepseek/deepseek-v4-flash"
+    llm_model: str = "x-ai/grok-4-fast"
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_timeout: int = 30
     llm_max_tokens: int = 1024
@@ -36,7 +36,6 @@ class AssistantConfig(BaseSettings):
     # --- Audio / STT ---
     audio_sample_rate: int = 16000
     audio_channels: int = 1
-    audio_listen_duration: float = 7.0
     stt_model: str = "medium"
     stt_language: str = "ru"
 

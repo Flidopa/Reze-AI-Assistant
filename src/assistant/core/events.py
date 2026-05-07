@@ -9,6 +9,8 @@ __all__ = [
     "Event",
     # Audio
     "WakeWordDetected",
+    "RecordingStarted",
+    "RecordingStopped",
     "UserSpeechDetected",
     "SpeechSynthesisRequested",
     "AudioPlaybackRequested",
@@ -37,6 +39,16 @@ class Event:
 
 @dataclass
 class WakeWordDetected(Event):
+    pass
+
+
+@dataclass
+class RecordingStarted(Event):
+    pass
+
+
+@dataclass
+class RecordingStopped(Event):
     pass
 
 
