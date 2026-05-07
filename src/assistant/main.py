@@ -20,7 +20,11 @@ from assistant.core.events import (
     SpeechSynthesisRequested,
 )
 from assistant.core.logging import setup_logging
+from assistant.core.ui import ConsoleUI, get_console, print_banner
+from assistant.tools.currency import CurrencyRateTool
+from assistant.tools.datetime_tool import DateTimeTool
 from assistant.tools.registry import ToolRegistry
+from assistant.tools.weather import WeatherTool
 from assistant.tools.web_search import WebSearchTool
 
 logger = logging.getLogger(__name__)
@@ -29,15 +33,21 @@ logger = logging.getLogger(__name__)
 async def main() -> None:
     """Initialise all modules, wire them together, and run until cancelled."""
     config = get_config()
+    print_banner(config.assistant_name)
     setup_logging(config.log_level)
     logger.info("Assistant starting...")
 
     # --- infrastructure ---
     event_bus = EventBus()
+    console_ui = ConsoleUI(get_console(), config.assistant_name)
+    console_ui.start(event_bus)  # subscribe first so spinner stops before TTS bridge runs
 
     # --- tools ---
     tool_registry = ToolRegistry()
     tool_registry.register(WebSearchTool())
+    tool_registry.register(CurrencyRateTool())
+    tool_registry.register(WeatherTool(config.openweather_api_key))
+    tool_registry.register(DateTimeTool())
 
     # --- brain ---
     llm_client = LLMClient(config)

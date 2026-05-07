@@ -129,6 +129,30 @@ class TestHistoryTrimming:
         assert orc._history[0].role == "system"
         assert len(orc._history) <= 3
 
+    async def test_trim_never_starts_with_tool_role(
+        self, event_bus: EventBus, llm_mock: AsyncMock
+    ) -> None:
+        """Trimming must not leave an orphaned tool message at index 1."""
+        registry = _make_registry("dummy", "result")
+        cfg = _make_config(llm_max_history=5)
+        orc = Orchestrator(event_bus, llm_mock, cfg, tool_registry=registry)
+        orc.start()
+
+        # Turn 1: tool_call → tool_result → text (3 LLM calls worth)
+        llm_mock.complete.side_effect = [
+            _tool_llm("dummy", {}),
+            _text_llm("done1"),
+        ]
+        await event_bus.emit(UserSpeechDetected(text="turn1"))
+        # history: [system, user1, assistant_tc, tool, assistant_text] = 5
+
+        # Turn 2: plain text response; this would push to 7 → trimmed to 5
+        llm_mock.complete.return_value = _text_llm("done2")
+        await event_bus.emit(UserSpeechDetected(text="turn2"))
+
+        assert orc._history[0].role == "system"
+        assert orc._history[1].role == "user"  # never a tool message at [1]
+
 
 class TestToolCall:
     async def test_emits_tool_call_requested(
@@ -277,6 +301,24 @@ class TestMultiTurnToolLoop:
         assert received == []
         assert llm_mock.complete.call_count == MAX_TOOL_ROUNDS
 
+    async def test_max_rounds_reverts_tool_history(
+        self, event_bus: EventBus, llm_mock: AsyncMock
+    ) -> None:
+        """After hitting MAX_TOOL_ROUNDS, tool messages must be rolled back."""
+        registry = _make_registry("loop_tool", "keep going")
+        orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
+        orc.start()
+
+        llm_mock.complete.return_value = _tool_llm("loop_tool", {})
+        history_len_before = len(orc._history)
+
+        await event_bus.emit(UserSpeechDetected(text="spin"))
+
+        tool_msgs = [m for m in orc._history if m.role in ("tool", "assistant") and m.tool_calls]
+        assert tool_msgs == []
+        # User message stays, tool exchanges reverted → +1 from initial state
+        assert len(orc._history) == history_len_before + 1
+
     async def test_tool_completed_event_emitted(
         self, event_bus: EventBus, llm_mock: AsyncMock
     ) -> None:
@@ -318,19 +360,21 @@ class TestMultiTurnToolLoop:
         tool_msgs = [m for m in orc._history if m.role == "tool"]
         assert "ghost" in tool_msgs[0].content  # type: ignore[operator]
 
-    async def test_no_tool_call_requested_event_with_registry(
+    async def test_tool_call_requested_emitted_for_observability(
         self, event_bus: EventBus, llm_mock: AsyncMock
     ) -> None:
-        """With a registry, orchestrator should NOT emit ToolCallRequested."""
+        """Registry path emits ToolCallRequested before executing each tool (UI hook)."""
         registry = _make_registry("dummy", "r")
         orc = Orchestrator(event_bus, llm_mock, _make_config(), tool_registry=registry)
         orc.start()
 
-        llm_mock.complete.side_effect = [_tool_llm("dummy", {}), _text_llm("OK")]
+        llm_mock.complete.side_effect = [_tool_llm("dummy", {"x": 1}), _text_llm("OK")]
 
         tc_requested: list[ToolCallRequested] = []
         event_bus.subscribe(ToolCallRequested, lambda e: tc_requested.append(e) or _noop())  # type: ignore[arg-type, return-value]
 
         await event_bus.emit(UserSpeechDetected(text="test"))
 
-        assert tc_requested == []
+        assert len(tc_requested) == 1
+        assert tc_requested[0].tool_name == "dummy"
+        assert tc_requested[0].arguments == {"x": 1}

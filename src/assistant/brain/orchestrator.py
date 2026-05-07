@@ -72,6 +72,7 @@ class Orchestrator:
     async def _multi_turn_loop(self, tools: list[dict[str, Any]] | None) -> LLMResponse | None:
         """Run up to MAX_TOOL_ROUNDS of LLM → tool → LLM exchanges."""
         response: LLMResponse | None = None
+        turn_start = len(self._history)
         for _round in range(MAX_TOOL_ROUNDS):
             response = await self._llm_client.complete(
                 messages=self._history,
@@ -84,7 +85,10 @@ class Orchestrator:
                 result = await self._execute_tool(tc)
                 self._history.append(LLMClient.tool_message(tc.id, result))
         else:
-            logger.warning("Max tool rounds (%d) reached without a text response", MAX_TOOL_ROUNDS)
+            logger.warning("Max tool rounds (%d) reached, reverting tool messages", MAX_TOOL_ROUNDS)
+            # Roll back all tool exchanges so the next request starts from a clean state.
+            self._history = self._history[:turn_start]
+            response = None
         return response
 
     async def _single_turn(self) -> LLMResponse:
@@ -110,8 +114,13 @@ class Orchestrator:
             )
             return msg
 
+        logger.info("Executing tool '%s' with args: %s", tc.name, tc.arguments)
+        await self._event_bus.emit(ToolCallRequested(tool_name=tc.name, arguments=tc.arguments))
         try:
             result = await tool.execute(**tc.arguments)
+            logger.info(
+                "Tool '%s' result (success=%s): %s", tc.name, result.success, result.content[:200]
+            )
             await self._event_bus.emit(
                 ToolCallCompleted(tool_name=tc.name, result=result.content, success=result.success)
             )
@@ -126,5 +135,10 @@ class Orchestrator:
 
     def _trim_history(self) -> None:
         max_h = self._config.llm_max_history
-        if len(self._history) > max_h:
-            self._history = [self._history[0]] + self._history[-(max_h - 1) :]
+        if len(self._history) <= max_h:
+            return
+        tail = self._history[-(max_h - 1) :]
+        # Advance to the first user message so we never start with an orphaned
+        # tool or assistant_tc message (which would cause a 400 from the API).
+        start = next((i for i, m in enumerate(tail) if m.role == "user"), 0)
+        self._history = [self._history[0]] + tail[start:]
